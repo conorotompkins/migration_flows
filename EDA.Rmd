@@ -1,0 +1,64 @@
+---
+title: "EDA"
+author: "Conor Tompkins"
+date: "5/15/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+df
+
+df %>% 
+  select(state_from, state_to, migration)
+
+df %>% 
+  filter(state_from == state_to) %>% 
+  select(state_from, state_to, migration) %>% 
+  View()
+
+df_states <- df %>% 
+  select(state_from, state_to, migration) %>% 
+  filter(state_from != state_to) %>%
+  arrange(state_from, state_to) %>%
+  mutate(interstate_flag = str_detect(state_to, "Foreign"))
+
+df_states %>% 
+  filter(state_from %in% c("Pennsylvania", "New York", "Ohio", "Virginia", "West Virginia", "Maryland")) %>%
+  mutate(state_to = reorder_within(state_to, migration, state_from)) %>%
+  arrange(state_from, desc(migration)) %>% 
+  group_by(state_from) %>% 
+  slice(1:5) %>% 
+  ggplot(aes(migration, state_to)) +
+    geom_col() +
+    facet_wrap(~state_from, scales = "free") +
+    scale_y_reordered() +
+    scale_x_comma()
+
+df_states %>%
+  distinct(state_from)
+
+df_states %>% 
+  group_by(state_to) %>% 
+  summarize(migration = sum(migration, na.rm = TRUE)) %>% 
+  ungroup() %>% 
+  arrange(desc(migration)) %>% 
+  mutate(state_to = fct_reorder(state_to, migration)) %>%
+  ggplot(aes(migration, state_to)) +
+    geom_col()
+
+df_states %>% 
+  group_by(state_to) %>% 
+  summarize(migration = sum(migration, na.rm = TRUE)) %>% 
+  ungroup() %>% 
+  arrange(desc(migration)) %>% 
+  mutate(state_to = fct_reorder(state_to, migration),
+         rank = row_number()) %>%
+  filter(rank %in% c(1:5, 50:54)) %>%
+  ggplot(aes(migration, state_to)) +
+    geom_col()
+```
+
