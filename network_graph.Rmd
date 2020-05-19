@@ -147,6 +147,11 @@ ggraph(manual_layout_targeted) +
   theme_bw()
 ```
 
+#animating
+https://gist.github.com/clairemcwhite/7fb348acca2c84c464d751ba38ce72e1
+https://stackoverflow.com/questions/56562494/animating-a-network-in-r
+https://stackoverflow.com/questions/56206985/smooth-transitions-between-different-layouts-of-the-same-network-in-ggraph
+
 ```{r eval = FALSE}
 network_plot_animated <- ggraph(manual_layout) + 
   geom_sf(data = df_states) +
