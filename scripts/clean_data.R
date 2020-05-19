@@ -7,6 +7,9 @@ library(hrbrthemes)
 
 theme_set(theme_bw())
 
+#data from
+#https://www.census.gov/data/tables/time-series/demo/geographic-mobility/state-to-state-migration.html
+
 clean_census_migration_data <- function(data){
   
   message(str_c("Reading in:", data, sep = " "))
@@ -37,7 +40,8 @@ clean_census_migration_data <- function(data){
     mutate(pct_migrated = migration / total_migration_population,
            state_to = str_replace_all(state_to, "_", " "),
            state_to = str_to_title(state_to),
-           state_to = str_remove_all(state_to, "[[:digit:]]"))
+           state_to = str_remove_all(state_to, "[[:digit:]]"),
+           state_to = str_replace(state_to, " Of ", " of "))
 
   return(df)
 }
@@ -63,5 +67,3 @@ df_migration %>%
 df_migration %>% 
   write_csv("output/migration_data_cleaned.csv")
 
-git config --global user.email "you@example.com"
-git config --global user.name "Your Name"
