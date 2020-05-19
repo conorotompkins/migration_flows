@@ -1,0 +1,162 @@
+---
+title: "network_graph"
+author: "Conor Tompkins"
+date: "5/18/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE,
+                      message = FALSE,
+                      warning = FALSE)
+```
+
+```{r}
+library(tidyverse)
+library(janitor)
+library(tidygraph)
+library(ggraph)
+library(sf)
+library(tidycensus)
+library(ggrepel)
+library(gganimate)
+```
+
+```{r}
+df_states <- get_acs(geography = "state", variables = "B19013_001", geometry = TRUE)
+
+df_states
+```
+
+```{r}
+df_state_centroids <- cbind(df_states, st_coordinates(st_centroid(df_states))) %>% 
+  st_drop_geometry()
+
+df_state_centroids %>% 
+  ggplot(aes(X, Y)) +
+    geom_point() +
+    geom_label(aes(label = NAME))
+```
+
+
+```{r}
+df_states %>% 
+  ggplot() +
+    geom_sf() +
+    geom_point(data = df_state_centroids, aes(X, Y)) +
+    coord_sf(xlim = c(-178.490999, -63.310338), ylim = c(13.659001, 73.846275)) +
+    theme_bw()
+
+# 48.429193, -63.310338
+# 14.425076, -62.790470
+# 73.846275, 171.865310
+# 13.659001, 178.490999
+  
+```
+
+
+```{r}
+df_migration <- read_csv("output/migration_data_cleaned.csv") %>% 
+  filter(year == 2018) %>% 
+  select(state_from, state_to, migration)
+```
+
+
+```{r}
+df_migration %>% 
+  as_tbl_graph() %>% 
+  ggraph() +
+    geom_node_point() +
+    geom_edge_fan(aes(edge_alpha = migration))
+```
+
+```{r}
+node_positions <- df_state_centroids %>% 
+  select(NAME, x = X, y = Y)
+
+graph_object <- df_migration %>% 
+  semi_join(node_positions, by = c("state_from" = "NAME")) %>% 
+  semi_join(node_positions, by = c("state_to" = "NAME")) %>% 
+  as_tbl_graph(directed = TRUE)
+
+graph_object %>% 
+  activate(nodes) %>% 
+  anti_join(node_positions, by = c("name" = "NAME"))
+```
+
+
+
+
+```{r}
+manual_layout <- create_layout(graph = graph_object,
+                               layout = node_positions)
+```
+
+
+```{r}
+ggraph(manual_layout) + 
+  geom_sf(data = df_states) +
+  geom_node_point(alpha = 0) +
+  geom_edge_fan(aes(edge_alpha = migration, edge_width = migration),
+                arrow = arrow(length = unit(4, 'mm')), 
+                start_cap = circle(1, 'mm'),
+                end_cap = circle(1, 'mm')) +
+  coord_sf(xlim = c(-178.490999, -63.310338), ylim = c(13.659001, 73.846275)) +
+  scale_edge_alpha_continuous(range = c(0, .6)) +
+  theme_bw()
+
+network_plot <- ggraph(manual_layout) + 
+  geom_sf(data = df_states) +
+  geom_node_point(alpha = 0) +
+  geom_edge_fan(aes(edge_alpha = migration, edge_width = migration),
+                arrow = arrow(length = unit(4, 'mm')), 
+                start_cap = circle(1, 'mm'),
+                end_cap = circle(1, 'mm')) +
+  coord_sf(xlim = c(-178.490999, -63.310338), ylim = c(13.659001, 73.846275)) +
+  scale_edge_alpha_continuous(range = c(0, .6)) +
+  theme_bw()
+
+  ggsave(filename = "output/state_migration_network_graph.png", plot = network_plot, height = 12, width = 12)
+```
+
+```{r}
+target_node_id <- graph_object %>% 
+  activate(nodes) %>% 
+  as_tibble() %>% 
+  mutate(node_id = row_number()) %>% 
+  filter(name == "Pennsylvania") %>% 
+  pull(node_id)
+
+graph_object_targeted <- graph_object  %>% 
+  activate(edges) %>% 
+  filter(from == target_node_id)
+
+manual_layout_targeted <- create_layout(graph = graph_object_targeted,
+                               layout = node_positions)
+
+
+ggraph(manual_layout_targeted) + 
+  geom_sf(data = df_states) +
+  geom_node_point(alpha = 0) +
+  geom_edge_fan(aes(edge_alpha = migration, edge_width = migration)) +
+  coord_sf(xlim = c(-178.490999, -63.310338), ylim = c(13.659001, 73.846275)) +
+  scale_edge_alpha_continuous(range = c(0, .6)) +
+  theme_bw()
+```
+
+```{r eval = FALSE}
+network_plot_animated <- ggraph(manual_layout) + 
+  geom_sf(data = df_states) +
+  geom_node_point(alpha = 0) +
+  geom_edge_fan(aes(edge_alpha = migration, edge_width = migration),
+                arrow = arrow(length = unit(4, 'mm')), 
+                start_cap = circle(1, 'mm'),
+                end_cap = circle(1, 'mm')) +
+  coord_sf(xlim = c(-178.490999, -63.310338), ylim = c(13.659001, 73.846275)) +
+  scale_edge_alpha_continuous(range = c(0, .6)) +
+  theme_bw() +
+  transition_states(name)
+
+anim_save(filename = "output/state_migration_network_graph_animated.gif", animation = network_plot_animated)
+```
+
