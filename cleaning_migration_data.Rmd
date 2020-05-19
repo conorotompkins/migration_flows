@@ -1,0 +1,145 @@
+---
+title: "Cleaning creatively formatted U.S. Census Migration data"
+author: "Conor Tompkins"
+date: "5/18/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE,
+                      message = FALSE,
+                      warning = FALSE)
+```
+
+I recently ran across the [U.S. Census page for state-to-state migration flows](https://www.census.gov/data/tables/time-series/demo/geographic-mobility/state-to-state-migration.html). There's a lot of interesting analyses that can be done with a dataset like this. Unfortunately, when I opened up the .xls file, I realized that the data is not formatted in a way that makes it easy to analyze.
+
+SCREENHOTS OF ISSUES
+
+The data is *extremely* wide and contains a header, merged cells, multiple layers of column names, duplicate rows, and a footer. I assume there is a good reason for this format, but it does not make it easy for analysts to use.
+
+The `readxl` package makes working with Excel files and the attendant formatting issues very easy. It supports the legacy .xls format and has many useful functions that help you transform Excel sheets designed for presentation into data that is ready for analysis. The goal is to have a `from_state` column (where the migration flowed from), columns for summary statistics about the `from_state`, a `to_state` (where the migration flowed to), and `migration_amount` (how many people migrated).
+```{r}
+library(tidyverse)
+library(lubridate)
+library(readxl)
+library(janitor)
+library(tidytext)
+library(hrbrthemes)
+
+theme_set(theme_bw())
+```
+
+The first step is to read in the data with `read_xls`. I opened the .xls file to find the `range` that contained the data, and set Excel's "N/A" value to be `NA`.
+```{r}
+df <- read_xls("data/State_to_State_Migrations_Table_2017.xls", range = "A7:DZ78", na = "N/A")
+```
+
+SCREENSHOT OF RSTUDIO VIEW()
+
+The column headers are clearly malformed and there are rows of useless or blank values. The data is wide, and each `from_state` has its own column for Estimate and MOE (Margin of Error). For my purposes, I only want to keep the Estimate data for each `from_state`.
+
+Next, I identify the colums that contain the summary statistics I want to preserve. I identify the columns with their numeric index since the column names are mangled. 
+```{r}
+df <- df %>% 
+    rename(state_from = 1,
+           state_population_same_one_year_plus = 2,
+           state_population_same_house_one_year = 4,
+           state_population_same_state_one_year = 6,
+           state_population_different_state_residence_one_year = 8)
+```
+
+SCREENSHOT OF RSTUDIO VIEW()
+
+Next, I drop the columns that contain the MOEs and other duplicate columns. `read_xls` did a good job identifying those automatically, so I can just search for the string that the function uses to name unnamed columns.
+```{r}
+df <- df %>% 
+    select(-contains("..")) %>%
+    clean_names() %>%
+    filter_all(any_vars(!str_detect(., "Estimate"))) %>%
+    filter(!str_detect(state_from, "residence"))
+```
+
+SCREENSHOT OF RSTUDIO VIEW()
+
+This is much closer to a dataset that can be used for analysis. The remaining steps are pretty standard data munging activities. I turn the relevant columns from character to numeric type, filter out data I don't need, and pivot the data from wide to long. I aso compute the total migration population.
+```{r}
+df <- df %>%
+  mutate_at(vars(2:ncol(df)), as.numeric) %>%
+  filter(!str_detect(state_from, "United States")) %>%
+  pivot_longer(cols = 6:ncol(df), names_to = "state_to", values_to = "migration") %>%
+  group_by(state_from) %>%
+  mutate(total_migration_population = sum(migration, na.rm = TRUE)) %>%
+  ungroup() 
+```
+
+SCREENSHOT OF RSTUDIO VIEW()
+
+Finally, I calculate what % of a `from_state`'s total migration goes to each `to_state` and clean up the `to_state` names.
+```{r}
+df <- df %>% 
+  mutate(pct_migrated = migration / total_migration_population,
+           state_to = str_replace_all(state_to, "_", " "),
+           state_to = str_to_title(state_to),
+           state_to = str_remove_all(state_to, "[[:digit:]]"))
+```
+
+This is the final dataset:
+SCREENSHOT OF RSTUDIO VIEWER()
+
+I turned the above steps into a function called `clean_census_migration_data`. This lets me read in and clean the data in one line.
+```{r}
+clean_census_migration_data <- function(data){
+  
+  message(str_c("Reading in:", data, sep = " "))
+  
+  df <- suppressMessages(read_xls(data, range = "A7:DZ78", na = "N/A")) %>%
+    rename(state_from = 1,
+           state_population_same_one_year_plus = 2,
+           state_population_same_house_one_year = 4,
+           state_population_same_state_one_year = 6,
+           state_population_different_state_residence_one_year = 8
+    ) %>%
+    select(-contains("..")) %>%
+    clean_names() %>%
+    filter_all(any_vars(!str_detect(., "Estimate"))) %>%
+    filter(!str_detect(state_from, "residence"))
+
+  message(str_c("Rows:", nrow(df), sep = " "))
+  message(str_c("Columns:", ncol(df), sep = " "))
+          
+
+  df <- df %>%
+    mutate_at(vars(2:ncol(df)), as.numeric) %>%
+    filter(!str_detect(state_from, "United States")) %>%
+    pivot_longer(cols = 6:ncol(df), names_to = "state_to", values_to = "migration") %>%
+    group_by(state_from) %>%
+    mutate(total_migration_population = sum(migration, na.rm = TRUE)) %>%
+    ungroup() %>%
+    mutate(pct_migrated = migration / total_migration_population,
+           state_to = str_replace_all(state_to, "_", " "),
+           state_to = str_to_title(state_to),
+           state_to = str_remove_all(state_to, "[[:digit:]]"),
+           state_to = str_replace(state_to, " Of ", " of "))
+
+  return(df)
+}
+```
+
+Since the Census Bureau provides a file for each year, I can map `clean_census_migration_data` to multiple files in a list and combine them. This allows me to compare the data longitudinally.
+
+```{r}
+migration_files <- list.files("data", full.names = TRUE)
+
+migration_files
+```
+
+```{r message = TRUE}
+df_migration <- migration_files %>% 
+  set_names() %>% 
+  map_dfr(clean_census_migration_data, .id = "file_name") %>% 
+  mutate(year = str_extract(file_name, "[[:digit:]]{4}") %>% as.numeric) %>% 
+  select(year, everything(), -file_name)
+
+glimpse(df_migration)
+```
+
