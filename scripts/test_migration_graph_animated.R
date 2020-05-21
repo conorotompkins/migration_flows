@@ -46,3 +46,5 @@ df_migration %>%
     geom_node_point() +
     geom_edge_fan() +
     facet_edges(~state_from)
+
+
