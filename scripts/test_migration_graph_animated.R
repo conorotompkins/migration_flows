@@ -98,12 +98,12 @@ graph <- ggraph(manual_layout) +
                 # end_cap = circle(1, 'mm')) +
   coord_sf(xlim = c(-178.490999, -63.310338), ylim = c(13.659001, 73.846275)) +
   scale_edge_alpha_continuous(range = c(.3, .9)) +
-  scale_edge_width_continuous(range = c(0, 3)) +
+  scale_edge_width_continuous(range = c(0, 5)) +
   theme_bw() #+
   #facet_edges(~year)#+
   
 network_animation <- graph +
   transition_states(year) +
-  labs(title = "{closest_state}")
+  labs(title = str_c("Year:", "{closest_state}", sep = " "))
 
 anim_save("output/test_network_animation_year.gif", animation = network_animation, width = 1200, height = 1200)
