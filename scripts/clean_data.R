@@ -65,5 +65,9 @@ df_migration %>%
   View()
 
 df_migration %>% 
+  distinct(year) %>% 
+  View()
+
+df_migration %>% 
   write_csv("output/migration_data_cleaned.csv")
 
