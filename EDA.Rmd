@@ -70,3 +70,55 @@ df_states %>%
   ggplot(aes(migration, state_to)) +
     geom_col()
 ```
+```{r}
+df_ts <- read_csv("output/migration_data_cleaned.csv") %>% 
+  select(state_from, year, state_to, migration)
+
+df_ts
+```
+
+```{r}
+df_cumulative_to <- df_ts %>% 
+  filter(state_from %in% c("Pennsylvania", "California", "Texas", "West Virginia"),
+         state_from != state_to) %>% 
+  arrange(state_from, state_to, year) %>% 
+  group_by(state_from, state_to) %>% 
+  mutate(migration_cumulative = cumsum(migration)) %>% 
+  ungroup()
+
+df_cumulative_to %>% 
+  group_by(state_from, state_to) %>% 
+  mutate(state_to_label = case_when(year == last(year) ~ state_to,
+                                    year != last(year) ~ NA_character_)) %>% 
+  ggplot(aes(year, migration_cumulative, group = state_to)) +
+    geom_line() +
+    geom_label(aes(x = year + 1, label = state_to_label)) +
+    facet_wrap(~state_from, scales = "free_y")
+```
+
+```{r}
+df_cumulative_from <- df_ts %>% 
+  filter(state_to %in% c("Pennsylvania", "California", "Texas", "West Virginia"),
+         state_to != state_from) %>% 
+  arrange(state_to, state_from, year) %>% 
+  group_by(state_from, state_to) %>% 
+  mutate(migration_cumulative = cumsum(migration)) %>% 
+  ungroup()
+```
+
+```{r}
+df_cumulative_from %>% 
+  group_by(state_to, state_from) %>% 
+  mutate(state_from_label = case_when(year == last(year) ~ state_from,
+                                    year != last(year) ~ NA_character_)) %>% 
+  ungroup() %>% 
+  ggplot(aes(year, migration_cumulative, group = state_from)) +
+    geom_line() +
+    geom_label(aes(x = year + .5, label = state_from_label)) +
+    facet_wrap(~state_to, scales = "free_y")
+```
+
+
+```{r}
+```
+
