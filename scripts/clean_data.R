@@ -48,6 +48,7 @@ clean_census_migration_data <- function(data){
 
 
 df_migration <- list.files("data", full.names = TRUE) %>% 
+  discard(str_detect(., "2009")) %>% 
   #keep(str_detect(., "2017")) %>% 
   set_names() %>% 
   map_dfr(clean_census_migration_data, .id = "file_name") %>% 
