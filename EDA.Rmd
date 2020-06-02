@@ -9,6 +9,8 @@ output: html_document
 knitr::opts_chunk$set(echo = TRUE,
                       message = FALSE,
                       warning = FALSE)
+
+theme_set(theme_bw())
 ```
 
 ```{r}
@@ -16,9 +18,12 @@ library(tidyverse)
 library(lubridate)
 library(janitor)
 library(tidytext)
+library(ggrepel)
 library(hrbrthemes)
 
 theme_set(theme_bw())
+
+options(scipen = 999, digits = 2)
 ```
 
 ```{r}
@@ -120,5 +125,64 @@ df_cumulative_from %>%
 
 
 ```{r}
+df_migration <- read_csv("output/migration_data_cleaned.csv") %>% 
+  select(year, state_from, state_to, migration) %>% 
+  filter(state_from != state_to)
+
+df_migration
 ```
+
+```{r}
+df_from <- df_migration %>% 
+  group_by(state_from, year) %>% 
+  summarize(migration_from = sum(migration, na.rm = TRUE)) %>% 
+  rename(state = state_from)
+
+df_to <- df_migration %>% 
+  filter(!str_detect(state_to, "Country")) %>% 
+  group_by(state_to, year) %>% 
+  summarize(migration_to = sum(migration, na.rm = TRUE)) %>% 
+  rename(state = state_to)
+
+df_net <- df_from %>% 
+  full_join(df_to, by = c("state", "year")) %>% 
+  mutate(migration_net = migration_to - migration_from)
+```
+
+
+```{r}
+df_net %>% 
+  #group_by(state) %>% 
+  mutate(state_label = case_when(year == last(year) ~ state,
+                                 year != last(year) ~ NA_character_)) %>% 
+  ggplot(aes(year, migration_net, group = state)) +
+    geom_line() +
+    geom_label(aes(x = year + .5, label = state_label))
+```
+
+```{r}
+df_net %>% 
+  #group_by(state) %>% 
+  mutate(state_label = case_when(year == last(year) ~ state,
+                                 year != last(year) ~ NA_character_)) %>% 
+  group_by(state) %>% 
+  mutate(migration_net_cumulative = cumsum(migration_net)) %>% 
+  ggplot(aes(year, migration_net_cumulative, group = state)) +
+    geom_line() +
+    geom_label(aes(x = year + .5, label = state_label)) +
+    scale_y_comma()
+```
+
+```{r}
+df_net %>% 
+  ggplot(aes(migration_from, migration_to)) +
+    geom_abline(linetype = 2, alpha = .3) +
+    geom_point(alpha = .5) +
+    geom_label_repel(data = df_net %>% filter(state == "California"), aes(label = state)) +
+    facet_wrap(~year) +
+    coord_equal()
+```
+
+
+
 
