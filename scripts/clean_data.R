@@ -57,17 +57,17 @@ df_migration <- list.files("data", full.names = TRUE) %>%
 
 df_migration
 
-df_migration %>% 
-  distinct(state_from) %>% 
-  View()
-
-df_migration %>% 
-  distinct(state_to) %>% 
-  View()
-
-df_migration %>% 
-  distinct(year) %>% 
-  View()
+# df_migration %>% 
+#   distinct(state_from) %>% 
+#   View()
+# 
+# df_migration %>% 
+#   distinct(state_to) %>% 
+#   View()
+# 
+# df_migration %>% 
+#   distinct(year) %>% 
+#   View()
 
 df_migration %>% 
   write_csv("output/migration_data_cleaned.csv")
