@@ -175,6 +175,24 @@ df_net %>%
 
 ```{r}
 df_net %>% 
+  #group_by(state) %>% 
+  mutate(state_label = case_when(year == last(year) & state == "Pennsylvania" ~ state,
+                                 TRUE ~ NA_character_),
+         state_flag = state == "Pennsylvania") %>% 
+  ggplot(aes(year, migration_net, alpha = state_flag, group = state)) +
+    geom_line() +
+    geom_label(aes(x = year + .5, label = state_label)) +
+    scale_y_comma()
+
+df_migration %>% 
+  filter(state_from == "Pennsylvania") %>% 
+  mutate(domestic_flag = str_detect(state, "Foreign")) %>% 
+  group_by(state, year, domestic_flag) %>% 
+  summarize(migration_net)
+```
+
+```{r}
+df_net %>% 
   ggplot(aes(migration_from, migration_to)) +
     geom_abline(linetype = 2, alpha = .3) +
     geom_point(alpha = .5) +
